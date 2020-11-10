@@ -18,17 +18,13 @@ package de.dennisguse.opentracks;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.graphics.drawable.AnimatedVectorDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.View.OnClickListener;
+import android.view.accessibility.AccessibilityEvent;
 import android.widget.ImageButton;
 import android.widget.Toast;
-
-import androidx.core.content.ContextCompat;
 
 import de.dennisguse.opentracks.databinding.TrackControllerBinding;
 import de.dennisguse.opentracks.services.TrackRecordingServiceConnection;
@@ -42,25 +38,28 @@ import de.dennisguse.opentracks.util.UnitConversions;
  *
  * @author Jimmy Shih
  */
-public class TrackController {
+public class TrackController implements View.OnTouchListener {
 
     private static final String TAG = TrackController.class.getSimpleName();
 
     private final Activity activity;
     private final TrackRecordingServiceConnection trackRecordingServiceConnection;
-    private final Handler handlerUpdateTotalTime;
+    private final Handler handlerUpdateTotalTime = new Handler();
     private final boolean alwaysShow;
-    private ButtonDelay buttonDelay;
+
+    private Runnable buttonDelay;
+    private final int buttonDelayDuration;
 
     private final TrackControllerBinding viewBinding;
 
     private boolean isRecording;
     private boolean isPaused;
     private long totalTime = 0;
-
     private long totalTimeTimestamp = 0;
-
     private boolean isResumed = false;
+
+
+    private final Callback callback;
 
     // A runnable to update the total time.
     private final Runnable updateTotalTimeRunnable = new Runnable() {
@@ -73,96 +72,77 @@ public class TrackController {
     };
 
     @SuppressLint("ClickableViewAccessibility")
-    TrackController(Activity activity, TrackControllerBinding viewBinding, TrackRecordingServiceConnection trackRecordingServiceConnection, boolean alwaysShow, OnClickListener recordListener, OnClickListener stopListener) {
+    TrackController(Activity activity, TrackControllerBinding viewBinding, TrackRecordingServiceConnection trackRecordingServiceConnection, boolean alwaysShow, Callback callback) {
         this.activity = activity;
         this.viewBinding = viewBinding;
         this.trackRecordingServiceConnection = trackRecordingServiceConnection;
         this.alwaysShow = alwaysShow;
-        handlerUpdateTotalTime = new Handler();
-        viewBinding.trackControllerRecord.setOnTouchListener((view, motionEvent) -> onRecordTouch(activity, recordListener, motionEvent));
+        this.callback = callback;
 
-        viewBinding.trackControllerStop.setOnTouchListener((view, motionEvent) -> onStopTouch(activity, stopListener, motionEvent));
+        buttonDelayDuration = activity.getResources().getInteger(R.integer.buttonDelayMillis);
+
+        viewBinding.trackControllerRecord.setOnTouchListener(this);
+        viewBinding.trackControllerRecord.setOnClickListener((view) -> {
+            if (buttonDelay != null || (isRecording && !isPaused)) {
+                return;
+            }
+
+            callback.recordStart();
+        });
+
+        viewBinding.trackControllerStop.setOnTouchListener(this);
     }
 
-    private boolean onRecordTouch(final Activity activity, final OnClickListener recordListener, final MotionEvent motionEvent) {
-        if (isRecording && !isPaused) {
-            if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
-                buttonDelay = new ButtonDelay(activity, viewBinding.trackControllerRecord, R.drawable.ic_button_pause_anim, R.string.hold_to_pause, recordListener);
-                new Thread(buttonDelay).start();
-                return true;
-            } else if (motionEvent.getAction() == MotionEvent.ACTION_UP) {
-                viewBinding.trackControllerRecord.setImageResource(R.drawable.ic_button_pause);
-                if (buttonDelay != null) {
-                    buttonDelay.canceled = true;
-                }
-                return true;
-            }
-        } else if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
-            recordListener.onClick(null);
+    @SuppressLint("ClickableViewAccessibility") //We do accessibility manually.
+    @Override
+    public boolean onTouch(final View view, MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+            return false;
+        }
+
+        if (buttonDelay != null && event.getAction() == MotionEvent.ACTION_UP) {
+            handlerUpdateTotalTime.removeCallbacks(buttonDelay);
+            buttonDelay = null;
+            ((ImageButton) view).setPressed(false);
+            return false;
+        }
+
+        //Trigger button pressed animation
+        ((ImageButton) view).setPressed(true);
+
+        //To pause a recording
+        if (viewBinding.trackControllerRecord.equals(view)
+                && event.getAction() == MotionEvent.ACTION_DOWN
+                && isRecording && !isPaused) {
+            buttonDelay = () -> {
+                view.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED);
+                view.performClick();
+                callback.recordStart(); //TODO Should be recordPause();
+                ActivityUtils.vibrate(activity, 1000);
+            };
+            handlerUpdateTotalTime.postDelayed(buttonDelay, buttonDelayDuration);
+
+            ActivityUtils.toast(activity, R.string.hold_to_pause, Toast.LENGTH_SHORT, Gravity.CENTER);
             return true;
         }
-        return false;
-    }
 
-    private boolean onStopTouch(final Activity activity, final OnClickListener stopListener, final MotionEvent motionEvent) {
-        if (isRecording) {
-            if (motionEvent.getAction() == MotionEvent.ACTION_DOWN) {
-                buttonDelay = new ButtonDelay(activity, viewBinding.trackControllerStop, R.drawable.ic_button_stop_anim, R.string.hold_to_stop, stopListener);
-                new Thread(buttonDelay).start();
-                return true;
-            } else if (motionEvent.getAction() == MotionEvent.ACTION_UP) {
-                viewBinding.trackControllerStop.setImageResource(R.drawable.ic_button_stop);
-                if (buttonDelay != null) {
-                    buttonDelay.canceled = true;
-                }
-                return true;
-            }
-        }
-        return false;
-    }
+        //To stop a recording
+        if (viewBinding.trackControllerStop.equals(view)
+                && event.getAction() == MotionEvent.ACTION_DOWN
+                && isRecording) {
 
-    private static class ButtonDelay implements Runnable {
-
-        private boolean canceled = false;
-
-        private final ImageButton imageButton;
-        private final Activity activity;
-        private final OnClickListener clickListener;
-        private final int delayMillis;
-        private final Drawable drawable;
-        private final int delayMessageId;
-
-        private ButtonDelay(final Activity activity, final ImageButton imageButton, final int animDrawableId, final int delayMessageId, final OnClickListener clickListener) {
-            this.activity = activity;
-            this.clickListener = clickListener;
-            this.delayMillis = activity.getResources().getInteger(R.integer.buttonDelayMillis);
-            this.imageButton = imageButton;
-            this.drawable = ContextCompat.getDrawable(activity, animDrawableId);
-            this.delayMessageId = delayMessageId;
-        }
-
-        @Override
-        public void run() {
-            activity.runOnUiThread(() -> {
-                imageButton.setImageDrawable(drawable);
-                if (drawable instanceof AnimatedVectorDrawable) {
-                    ((AnimatedVectorDrawable) drawable).start();
-                }
+            buttonDelay = () -> {
+                view.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED);
+                callback.recordStop();
                 ActivityUtils.vibrate(activity, 150);
-                ActivityUtils.toast(activity, delayMessageId, Toast.LENGTH_SHORT, Gravity.TOP);
-            });
+            };
+            handlerUpdateTotalTime.postDelayed(buttonDelay, buttonDelayDuration);
 
-            try {
-                Thread.sleep(delayMillis);
-            } catch (InterruptedException ignored) {
-            }
-            if (!canceled) {
-                activity.runOnUiThread(() -> {
-                    clickListener.onClick(null);
-                    ActivityUtils.vibrate(activity, 1000);
-                });
-            }
+            ActivityUtils.toast(activity, R.string.hold_to_stop, Toast.LENGTH_SHORT, Gravity.CENTER);
+            return true;
         }
+
+        return false;
     }
 
     public void update(boolean recording, boolean paused) {
@@ -179,10 +159,9 @@ public class TrackController {
             return;
         }
 
-        viewBinding.trackControllerRecord.setImageResource(isRecording && !isPaused ? R.drawable.ic_button_pause : R.drawable.button_record);
+        viewBinding.trackControllerRecord.setImageResource(isRecording && !isPaused ? R.drawable.button_pause : R.drawable.button_record);
         viewBinding.trackControllerRecord.setContentDescription(activity.getString(isRecording && !isPaused ? R.string.image_pause : R.string.image_record));
 
-        viewBinding.trackControllerStop.setImageResource(isRecording ? R.drawable.ic_button_stop : R.drawable.ic_button_stop_disabled);
         viewBinding.trackControllerStop.setEnabled(isRecording);
 
         viewBinding.trackControllerStatus.setVisibility(isRecording ? View.VISIBLE : View.INVISIBLE);
@@ -227,5 +206,11 @@ public class TrackController {
     private long getTotalTime() {
         TrackRecordingServiceInterface trackRecordingService = trackRecordingServiceConnection.getServiceIfBound();
         return trackRecordingService != null ? trackRecordingService.getTotalTime() : 0L;
+    }
+
+    public interface Callback {
+        void recordStart();
+
+        void recordStop();
     }
 }

@@ -1,0 +1,16 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="82dp"
+            android:height="82dp"
+            android:viewportWidth="125"
+            android:viewportHeight="125">
+            <path
+                android:name="fade_out_circle"
+                android:fillAlpha="0.8"
+                android:fillColor="#a31a1f"
+                android:pathData="M62.5,62.5m-0,-62a50,50 0,1 1,-0 123a50,50 0,1 1,-0 -123" />
+        </vector>
+    </aapt:attr>
+</animated-vector>

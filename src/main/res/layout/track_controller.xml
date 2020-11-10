@@ -29,6 +29,7 @@ limitations under the License.
             android:layout_height="wrap_content"
             android:layout_weight="10"
             android:background="@android:color/transparent"
+            android:src="@drawable/ic_button_record"
             android:contentDescription="@string/image_record" />
 
         <RelativeLayout
@@ -64,7 +65,7 @@ limitations under the License.
             android:layout_weight="10"
             android:background="@android:color/transparent"
             android:contentDescription="@string/image_stop"
-            android:src="@drawable/ic_button_stop_disabled" />
+            android:src="@drawable/button_stop" />
 
     </LinearLayout>
 </merge>

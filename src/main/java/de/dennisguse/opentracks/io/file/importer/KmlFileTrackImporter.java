@@ -194,9 +194,6 @@ public class KmlFileTrackImporter extends AbstractFileTrackImporter {
             return;
         }
 
-        // If there is photoUrl it has to be changed because that url in kml file is a relative path to the internal kmz file.
-        photoUrl = getInternalPhotoUrl(photoUrl);
-
         addMarker();
     }
 

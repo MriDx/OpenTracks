@@ -53,7 +53,6 @@ public class KmzTrackImporter implements TrackImporter {
     private static final int BUFFER_SIZE = 4096;
 
     private final Context context;
-    private Track.Id importTrackId; //TODO needed?
     private final Uri uriKmzFile;
 
     /**
@@ -69,20 +68,18 @@ public class KmzTrackImporter implements TrackImporter {
     public Track.Id importFile(InputStream inputStream) {
         Track.Id trackId;
 
-        if (!copyKmzImages()) {
-            cleanImport(context, importTrackId);
-            return null;
-        }
-
         try {
             trackId = findAndParseKmlFile(inputStream);
         } catch (Exception e) {
-            cleanImport(context, importTrackId);
             throw e;
         }
 
         if (trackId == null) {
-            cleanImport(context, importTrackId);
+            return null;
+        }
+
+        if (!copyKmzImages(trackId)) {
+            cleanImport(context, trackId);
             return null;
         }
 
@@ -96,7 +93,7 @@ public class KmzTrackImporter implements TrackImporter {
      *
      * @return false if there are errors or true otherwise.
      */
-    private boolean copyKmzImages() {
+    private boolean copyKmzImages(Track.Id trackId) {
         try (InputStream inputStream = context.getContentResolver().openInputStream(uriKmzFile);
              ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
             ZipEntry zipEntry;
@@ -109,7 +106,7 @@ public class KmzTrackImporter implements TrackImporter {
 
                 String fileName = zipEntry.getName();
                 if (hasImageExtension(fileName)) {
-                    readAndSaveImageFile(zipInputStream, importNameForFilename(fileName));
+                    readAndSaveImageFile(zipInputStream, trackId, importNameForFilename(fileName));
                 }
 
                 zipInputStream.closeEntry();
@@ -283,14 +280,15 @@ public class KmzTrackImporter implements TrackImporter {
      * Reads an image file (zipInputStream) and save it in a file called fileName inside photo folder.
      *
      * @param zipInputStream the zip input stream
+     * @param trackId        the track's id which image belongs to.
      * @param fileName       the file name
      */
-    private void readAndSaveImageFile(ZipInputStream zipInputStream, String fileName) throws IOException {
-        if (importTrackId == null || fileName.equals("")) {
+    private void readAndSaveImageFile(ZipInputStream zipInputStream, Track.Id trackId, String fileName) throws IOException {
+        if (trackId == null || fileName.equals("")) {
             return;
         }
 
-        File dir = FileUtils.getPhotoDir(context, importTrackId);
+        File dir = FileUtils.getPhotoDir(context, trackId);
         File file = new File(dir, fileName);
 
         try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {

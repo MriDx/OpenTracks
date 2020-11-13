@@ -167,11 +167,9 @@ abstract class AbstractFileTrackImporter extends DefaultHandler implements Track
                         // No more markers
                         return;
                     }
-                    Log.e("probando", "Marker con foto? " + marker.hasPhoto() + " | " + marker.getPhotoUrl());
                     // If marker had photo it must be translated to internal photo url (depend on track id)
                     if (marker.hasPhoto()) {
                         marker.setPhotoUrl(getInternalPhotoUrl(marker.getPhotoUrl()));
-                        Log.e("probando", "Marker internal photo url: " + marker.getPhotoUrl());
                     }
                 }
 
@@ -399,9 +397,9 @@ abstract class AbstractFileTrackImporter extends DefaultHandler implements Track
         }
 
         String importFileName = KmzTrackImporter.importNameForFilename(externalPhotoUrl);
-        File file = FileUtils.getPhotoFileIfExists(context, trackData.track.getId(), Uri.parse(importFileName));
-        if (file != null) {
-            Uri photoUri = FileUtils.getUriForFile(context, file);
+        File photoFile = FileUtils.buildInternalPhotoFile(context, trackData.track.getId(), Uri.parse(importFileName));
+        Uri photoUri = FileUtils.getUriForFile(context, photoFile);
+        if (photoUri != null) {
             return "" + photoUri;
         }
 

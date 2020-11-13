@@ -488,7 +488,7 @@ public class ContentProviderUtils {
     private void deleteMarkerPhoto(Context context, Marker marker) {
         if (marker != null && marker.hasPhoto()) {
             Uri uri = marker.getPhotoURI();
-            File file = FileUtils.getPhotoFileIfExists(context, marker.getTrackId(), uri);
+            File file = FileUtils.buildInternalPhotoFile(context, marker.getTrackId(), uri);
             if (file.exists()) {
                 File parent = file.getParentFile();
                 file.delete();

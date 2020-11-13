@@ -260,33 +260,27 @@ public class FileUtils {
     }
 
     /**
-     * Checks that there is a file inside track photo directory whose name is the same that uri file.
-     * If there is a file inside photo directory whose name is the same that uri then returns File. Otherwise returns null.
+     * Builds interval photo file object for fileNameUri Uri.
      *
-     * @param context the Context.
-     * @param trackId the id of the Track.
-     * @param uri     the uri to check.
-     * @return File object or null.
+     * @param context     the Context.
+     * @param trackId     the id of the Track.
+     * @param fileNameUri the file name uri.
+     * @return            file object or null.
      */
-    public static File getPhotoFileIfExists(Context context, Track.Id trackId, Uri uri) {
-        if (uri == null) {
+    public static File buildInternalPhotoFile(Context context, Track.Id trackId, Uri fileNameUri) {
+        if (fileNameUri == null) {
             Log.w(TAG, "URI object is null.");
             return null;
         }
 
-        String filename = uri.getLastPathSegment();
+        String filename = fileNameUri.getLastPathSegment();
         if (filename == null) {
             Log.w(TAG, "External photo contains no filename.");
             return null;
         }
 
         File dir = FileUtils.getPhotoDir(context, trackId);
-        File file = new File(dir, filename);
-        if (!file.exists()) {
-            return null;
-        }
-
-        return file;
+        return new File(dir, filename);
     }
 
     /**
